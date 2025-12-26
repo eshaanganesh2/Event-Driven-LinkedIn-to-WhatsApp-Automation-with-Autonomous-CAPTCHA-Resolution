@@ -1,21 +1,21 @@
-# LinkedIn to WhatsApp Daily Notifier 📲
+# LinkedIn to WhatsApp Daily Notifier
 
 This project fetches the latest LinkedIn post from a specified profile and sends it as a WhatsApp message to one or more contacts **every day at 11:30 AM**. The backend is built using Python, Flask, and AWS Lambda with SAM for serverless deployment.
 
 ---
 
-## 🚀 Features
+## Features
 
-- ✅ Flask-based API to retrieve latest LinkedIn post using `linkedin-api`
-- ✅ Sends formatted WhatsApp message using Meta's WhatsApp Cloud API
-- ✅ Scheduled execution every day at 11:30 AM Kuwait time via EventBridge
-- ✅ Serverless deployment via AWS SAM
-- ✅ Environment-driven configuration for credentials and contacts
-- ✅ Modular structure with layered Lambda support for Python dependencies
+- Flask-based API to retrieve latest LinkedIn post using `linkedin-api`
+- Sends formatted WhatsApp message using Meta's WhatsApp Cloud API
+- Scheduled execution every day at 11:30 AM Kuwait time via EventBridge
+- Serverless deployment via AWS SAM
+- Environment-driven configuration for credentials and contacts
+- Modular structure with layered Lambda support for Python dependencies
 
 ---
 
-## 📦 Tech Stack
+## Tech Stack
 
 - **Backend**: Python 3.12, Flask
 - **Deployment**: AWS Lambda + API Gateway via AWS SAM
@@ -26,7 +26,7 @@ This project fetches the latest LinkedIn post from a specified profile and sends
 
 ---
 
-## 🧭 Architecture Overview
+## Architecture Overview
 
 ```
 
@@ -49,7 +49,7 @@ This project fetches the latest LinkedIn post from a specified profile and sends
 
 ---
 
-## ⚙️ Setup Instructions
+## Setup Instructions
 
 ### 1. Clone the repo and install AWS SAM CLI
 
@@ -94,7 +94,7 @@ Environment:
 
 ---
 
-## 🚀 Deployment (SAM)
+## Deployment (SAM)
 
 ```bash
 sam build
@@ -110,7 +110,7 @@ Follow prompts to set:
 
 ---
 
-## 📂 Folder Structure
+## Folder Structure
 
 ```
 ├── LinkedIn_to_WhatsApp.py     # Flask-based API handler
@@ -122,7 +122,7 @@ Follow prompts to set:
 
 ---
 
-## 🔁 How It Works
+## How It Works
 
 ### /getLatestPost (Flask API)
 
@@ -137,7 +137,7 @@ Follow prompts to set:
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 * [linkedin-api](https://github.com/tomquirk/linkedin-api)
 * [Meta WhatsApp Cloud API Docs](https://developers.facebook.com/docs/whatsapp)

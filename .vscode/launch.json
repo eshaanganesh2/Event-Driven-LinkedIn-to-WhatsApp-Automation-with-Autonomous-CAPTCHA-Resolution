@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    
+    {
+      "name": "Run this for debug!",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "/Users/eshaanamin/Documents/Linkedin_to_Whatsapp/LinkedIn-to-WhatsApp-Daily-Notifier/LinkedIn_to_WhatsApp.py",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    }
+  ]
+}
