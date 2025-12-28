@@ -34,7 +34,7 @@ Resources:
         DailySchedule:
           Type: Schedule
           Properties:
-            Schedule: cron(17 16 * * ? *)
+            Schedule: cron(25 20 * * ? *)
 
 
   MyLambdaLayer:

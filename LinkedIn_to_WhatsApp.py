@@ -4,8 +4,47 @@ from flask import Flask, request
 import pickle
 import aws_lambda_wsgi
 import shutil
+import requests
+from refreshCookies import RefreshCookies
+import time
+# from dotenv import load_dotenv
 
 app = Flask(__name__)
+
+# load_dotenv()
+
+# COMMON_HEADERS = {
+#     "User-Agent": (
+#         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+#         "AppleWebKit/537.36 (KHTML, like Gecko) "
+#         "Chrome/120.0.0.0 Safari/537.36"
+#     ),
+#     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+#     "Accept-Language": "en-US,en;q=0.9",
+#     "Referer": "https://www.linkedin.com/",
+#     "Connection": "keep-alive",
+# }
+
+
+USER_SESSION = None
+SESSION_TIMESTAMP = None
+SESSION_TTL = 30 * 60  # 30 minutes in seconds
+SOUP = None
+
+def get_user_session():
+    global USER_SESSION, SESSION_TIMESTAMP
+
+    # If session doesn't exist or expired, create a new one
+    now = time.time()
+    if USER_SESSION is None or SESSION_TIMESTAMP is None or (now - SESSION_TIMESTAMP) > SESSION_TTL:
+        print("Creating new user session...")
+        USER_SESSION = requests.Session()
+        SESSION_TIMESTAMP = now
+        SOUP = None
+    else:
+        print("Reusing existing user session...")
+
+    return USER_SESSION
 
 def getLinkedinInstance(username, password, TMP_DIR):
     return Linkedin(username = username, password = password, cookies_dir=TMP_DIR)
@@ -88,7 +127,52 @@ def get_latest_post():
 @app.route("/helloWorld")
 def print_hello_world():
     print("Hello World")
+    username = os.environ.get('LINKEDIN_EMAIL')
+    password = os.environ.get('LINKEDIN_PASSWORD')
+    session=get_user_session()
+    refreshCookies = RefreshCookies()
+    SOUP=refreshCookies.login(session,username,password)
+    print(SOUP)
     return "Hello World"
+
+# Sending whastapp notification
+def send_to_whatsapp_contact(latest_post,recipient,payload,template):
+    # Prepare whatsapp graph api request body
+    token = os.environ.get("WHATSAPP_BEARER_TOKEN")
+    print("The token is ",token)
+    print("The recipient is ",recipient)
+    url = os.environ.get("WHATSAPP_API_URL")
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+
+    if template=="Standard":
+        payload["to"]=recipient
+        payload["text"]["body"]=latest_post
+    
+    if template=="Reply":
+        payload["to"]=recipient
+
+    res = requests.post(url, headers=headers, json=payload)
+
+    print("WhatsApp API response:", res.status_code, res.text)
+    return {
+        "statusCode": res.status_code,
+        "body": res.text
+    }
+
+standard_payload = {
+    "messaging_product": "whatsapp",
+    "recipient_type": "individual",
+    "to": "recipient",
+    "type": "text",
+    "text": {
+        "preview_url": True,
+        "body": "latest_post"
+    }
+}
 
 @app.route("/webhook", methods=['GET', 'POST'])
 def print_webhooks():
@@ -107,10 +191,15 @@ def print_webhooks():
             return 'Forbidden', 403
     
     if request.method == 'POST':
+        username = os.environ.get('LINKEDIN_EMAIL')
+        password = os.environ.get('LINKEDIN_PASSWORD')
+        owner=os.environ.get("OWNER")
+
         display_phone_number=""
         recipient_phone_number=""
         status=""
         timestamp=""
+        webhook_reply=""
         print("Logging events")
         data=request.get_json()
         print("The webhook is ",data)
@@ -121,19 +210,43 @@ def print_webhooks():
                 status = data.get('entry')[0].get('changes')[0].get('value').get('statuses')[0].get('status')
                 timestamp = data.get('entry')[0].get('changes')[0].get('value').get('statuses')[0].get('timestamp')
             except:
-            # from_number = data.get('entry')[0].get('changes')[0].get('value').get('messages')[0].get('from')
-            # timestamp = data.get('entry')[0].get('changes')[0].get('value').get('messages')[0].get('timestamp')
-            # type = data.get('entry')[0].get('changes')[0].get('value').get('messages')[0].get('type')
-            # text = data.get('entry')[0].get('changes')[0].get('value').get('messages')[0].get('text').get('body')
                 print("Error while extracting value from a webhook field")
+            # Asking user to send linkedin verification code
+            try:
+                webhook_reply =  data.get('entry')[0].get('changes')[0].get('value').get('messages')[0].get('interactive').get("button_reply").get("title")
+                if webhook_reply == "Refresh cookies now!":
+                    print("Owner chose to refresh cookies now")
+                    print("Asking user for challenge verification PIN")
+                    session=get_user_session()
+                    # session.headers.update(COMMON_HEADERS)
+                    refreshCookies = RefreshCookies()
+                    SOUP=refreshCookies.login(session,username,password)
+                    print("Sending message for verification code")
+                    send_to_whatsapp_contact("Please share LinkedIn login verification code in the specified format\n verification code=<verification_code>",owner,standard_payload,"Standard")
+            except Exception as e:
+                print("Not a webhook reply",e)
+            
+            try:
+                # Check for verification code
+                verification_code_text_placeholder = data.get('entry')[0].get('changes')[0].get('value').get('messages')[0].get('text').get("body")
+                if verification_code_text_placeholder.startswith("verification code="):
+                    print("Invoking automation to perform login and have cookies saved to temp dir")
+                    session=get_user_session()
+                    # session.headers.update(COMMON_HEADERS)
+                    verification_code = verification_code_text_placeholder.split("verification code=")[1]
+                    refreshCookies = RefreshCookies()
+                    refreshCookies.verify_pin(session,verification_code,SOUP)
+                    time.sleep(10)
+                    print("Sign in automation code completed execution")
+            except Exception as e:
+                print("Error extracting verification code",e)
+
+
+
             print("The sender phone number is ", display_phone_number)
             print("The recipient phone number is ",recipient_phone_number)
             print("The status is ",status)
             print("The timestamp is ",timestamp)
-            # print("The from number is ",from_number)
-            # print("The timestamp is ",timestamp)
-            # print("The type is ",type)
-            # print("The text is ",text)
 
         return "Success", 200
 

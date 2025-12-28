@@ -1,146 +1,165 @@
-# LinkedIn to WhatsApp Daily Notifier
+## LinkedIn to WhatsApp Daily Notifier
 
-This project fetches the latest LinkedIn post from a specified profile and sends it as a WhatsApp message to one or more contacts **every day at 11:30 AM**. The backend is built using Python, Flask, and AWS Lambda with SAM for serverless deployment.
+This project fetches the latest LinkedIn post from a specified profile and sends it as a WhatsApp message to one or more contacts **every day at 8:30 AM UTC**. The backend is built using Python, Flask, and AWS Lambda with SAM for serverless deployment.
+
+In addition, the system includes a **secure, semi-manual cookie refresh mechanism** to handle LinkedIn login challenges without permanently storing credentials or bypassing security checks.
 
 ---
 
 ## Features
 
-- Flask-based API to retrieve latest LinkedIn post using `linkedin-api`
-- Sends formatted WhatsApp message using Meta's WhatsApp Cloud API
-- Scheduled execution every day at 11:30 AM Kuwait time via EventBridge
-- Serverless deployment via AWS SAM
-- Environment-driven configuration for credentials and contacts
-- Modular structure with layered Lambda support for Python dependencies
+* Flask-based API to retrieve latest LinkedIn post using `linkedin-api`
+* Sends formatted WhatsApp messages using Meta’s WhatsApp Cloud API
+* Scheduled execution every day at 11:30 AM UTC time via EventBridge
+* Serverless deployment using AWS Lambda and AWS SAM
+* Environment-driven configuration for credentials and recipients
+* **Webhook-based LinkedIn session recovery flow**
+* **Manual verification support via WhatsApp when LinkedIn challenges occur**
+* Cookie reuse across days to minimize repeated logins
 
 ---
 
 ## Tech Stack
 
-- **Backend**: Python 3.12, Flask
-- **Deployment**: AWS Lambda + API Gateway via AWS SAM
-- **Scheduling**: EventBridge cron jobs
-- **WhatsApp Messaging**: WhatsApp Cloud API (Meta Graph API)
-- **Authentication**: OAuth Bearer Token for WhatsApp
-- **Others**: AWS Lambda Layers, Requests, LinkedIn API (unofficial)
+* **Backend**: Python 3.12, Flask
+* **Deployment**: AWS Lambda + API Gateway (AWS SAM)
+* **Scheduling**: EventBridge (cron)
+* **Messaging**: WhatsApp Cloud API (Meta Graph API)
+* **LinkedIn Access**: `linkedin-api` (unofficial)
+* **Session Handling**: Cookies persisted to temporary storage
+* **Verification Channel**: WhatsApp (manual user input)
 
 ---
 
 ## Architecture Overview
 
 ```
-
-┌──────────────┐
-│ LinkedIn API │
-└──────┬───────┘
-│
-▼
-┌─────────────────────┐    Scheduled (Daily @ 11:30 AM)
-│ Orchestrator Lambda ├────────────────────────────────────┐
-└──────┬──────────────┘                                    │
-│ calls Flask API                                   │
-▼                                                   ▼
-┌──────────────────────┐                        ┌────────────────────────┐
-│ Flask API (Lambda)   │   returns post text →  │ WhatsApp Cloud API     │
-│ /getLatestPost       │                        │ Sends message to users │
-└──────────────────────┘                        └────────────────────────┘
-
-````
+┌───────────────────────┐
+│ LinkedIn (Web/Login)  │
+└──────────┬────────────┘
+           │
+           ▼
+┌──────────────────────────────┐
+│ Flask API (AWS Lambda)        │
+│ - Fetch LinkedIn post         │
+│ - Handle login & cookies     │
+└──────────┬───────────────────┘
+           │
+           ▼
+┌──────────────────────────────┐
+│ linkedin-api library          │
+│ - Uses stored cookies         │
+│ - Raises ChallengeException   │
+└──────────┬───────────────────┘
+           │
+           ▼
+┌──────────────────────────────┐
+│ WhatsApp Cloud API            │
+│ - Sends post                  │
+│ - Sends verification prompts  │
+│ - Receives verification code  │
+└──────────────────────────────┘
+```
 
 ---
 
-## Setup Instructions
+## Cookie & Challenge Handling
 
-### 1. Clone the repo and install AWS SAM CLI
+LinkedIn may periodically invalidate sessions or trigger security challenges when cookies expire or when activity is detected from a new environment (e.g., AWS Lambda).
 
-```bash
-git clone <repo-url>
-cd linkedin-to-whatsapp
-````
+This project handles such cases **gracefully and transparently** using a webhook-driven verification flow.
 
-### 2. Install dependencies into a Lambda Layer
+### 🔄 Cookie Refresh Flow
 
-Create a `requirements.txt`:
+1. **Normal Operation**
 
-```txt
-linkedin-api
-requests
-flask
-```
+   * The system uses previously saved LinkedIn cookies to fetch posts.
+   * Cookies are stored in a temporary directory and reused across executions.
 
-Install into a layer:
+2. **Challenge Detected**
 
-```bash
-mkdir -p python
-pip install -r requirements.txt -t python
-zip -r dependencies-layer.zip python/
-```
+   * If `linkedin-api` raises a `ChallengeException`, the system:
 
-### 3. Define environment variables
+     * Stops automated execution
+     * Sends a **WhatsApp notification** indicating cookies have expired
 
-Edit `template.yaml`:
+3. **User-Initiated Refresh**
 
-```yaml
-Environment:
-  Variables:
-    WHATSAPP_BEARER_TOKEN: <your-token>
-    RECIPIENT_PHONE: "[<recipeient-list>]"
-    LINKEDIN_EMAIL: <your-email>
-    LINKEDIN_PASSWORD: <your-password>
-    URN_ID: <linkedin-profile-urn>
-```
+   * The WhatsApp message includes an option to **“Refresh cookies now”**
+   * When selected, a refresh script is triggered
 
-> Replace with real values or use AWS Secrets Manager later.
+4. **Verification Code Delivery**
+
+   * LinkedIn sends a **one-time verification code** to the account inbox (email/app)
+   * The system prompts the user (via WhatsApp) to submit the code
+
+5. **Manual Verification via WhatsApp**
+
+   * The user replies in WhatsApp using the format:
+
+     ```
+     verification code=123456
+     ```
+   * The backend submits the code to LinkedIn
+
+6. **Cookies Updated**
+
+   * Upon successful verification:
+
+     * Login completes
+     * `linkedin-api` automatically saves fresh cookies to disk
+     * Future executions reuse these cookies without additional login
+
+📌 **No credentials are shared via WhatsApp**, and verification is only triggered when LinkedIn explicitly requires it.
 
 ---
 
-## Deployment (SAM)
+## How It Works
 
-```bash
-sam build
-sam deploy --guided
-```
+### `/getLatestPost` (Flask API)
 
-Follow prompts to set:
+* Uses `linkedin-api` with stored cookies to fetch the latest post
+* If cookies are valid → returns post content
+* If cookies are expired → raises challenge and triggers WhatsApp notification
 
-* Stack name
-* AWS region
-* IAM roles
-* S3 bucket for deployment artifacts
+---
+
+### Orchestrator Lambda
+
+* Scheduled via EventBridge
+  `cron(30 8 * * ? *)`
+* Invokes `/getLatestPost`
+* Sends the LinkedIn post to WhatsApp recipients
+* Gracefully exits if a challenge is pending
 
 ---
 
 ## Folder Structure
 
 ```
-├── LinkedIn_to_WhatsApp.py     # Flask-based API handler
-├── orchestrator.py             # Scheduled Lambda logic
-├── template.yaml               # AWS SAM template
-├── cookies.jr                  # Pickled cookies for LinkedIn login
-├── dependencies-layer.zip      # Layer with Flask/requests/etc.
+├── LinkedIn_to_WhatsApp.py   # Flask API (Lambda entrypoint)
+├── refreshCookies.py        # Login & verification handling
+├── orchestrator.py          # Scheduled execution logic
+├── template.yaml            # AWS SAM template
+├── tmp/                     # Directory for LinkedIn cookies
+├── dependencies-layer.zip   # Lambda layer with dependencies
 ```
 
 ---
 
-## How It Works
+## Security Notes
 
-### /getLatestPost (Flask API)
-
-* Uses saved cookies and credentials to fetch the most recent LinkedIn post
-* Exposed via API Gateway using `{proxy+}` route
-
-### Orchestrator Lambda
-
-* Scheduled via EventBridge (`cron(30 8 * * ? *)` → 11:30 AM UTC+3)
-* Calls `/getLatestPost`, parses response
-* Sends WhatsApp message to defined recipient using Graph API
+* Cookies are stored temporarily and refreshed only when required
+* Verification codes are never persisted
+* No attempt is made to bypass LinkedIn security mechanisms
+* All sensitive values are injected via environment variables
 
 ---
 
 ## Acknowledgments
 
 * [linkedin-api](https://github.com/tomquirk/linkedin-api)
-* [Meta WhatsApp Cloud API Docs](https://developers.facebook.com/docs/whatsapp)
-* [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html)
+* [Meta WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp)
+* [AWS SAM](https://docs.aws.amazon.com/serverless-application-model)
 
 ---
