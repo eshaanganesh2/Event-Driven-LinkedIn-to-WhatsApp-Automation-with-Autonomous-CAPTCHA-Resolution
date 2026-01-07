@@ -1,12 +1,27 @@
 {
   "version": "0.2.0",
   "configurations": [
-    
     {
-      "name": "Run this for debug!",
+      "name": "Run this for debugging LinkedIn_to_WhatsApp.py!",
       "type": "debugpy",
       "request": "launch",
       "program": "/Users/eshaanamin/Documents/Linkedin_to_Whatsapp/LinkedIn-to-WhatsApp-Daily-Notifier/LinkedIn_to_WhatsApp.py",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Run this for debugging DrissionPageLocalCaptchaSolver.py!",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "/Users/eshaanamin/Documents/Linkedin_to_Whatsapp/LinkedIn-to-WhatsApp-Daily-Notifier/local/DrissionPageLocalCaptchaSolver.py",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Run this for debugging PlaywrightLocalCaptchaSolver.py!",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "/Users/eshaanamin/Documents/Linkedin_to_Whatsapp/LinkedIn-to-WhatsApp-Daily-Notifier/local/PlaywrightLocalCaptchaSolver.py",
       "console": "integratedTerminal",
       "justMyCode": false
     }
