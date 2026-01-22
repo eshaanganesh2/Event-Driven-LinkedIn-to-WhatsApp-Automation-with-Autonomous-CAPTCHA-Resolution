@@ -92,7 +92,7 @@ def lambda_handler(event, context):
     data=res.json()
     if res.status_code==403:
         if data.get("error") == "challenge_required":
-            print("Sending message template to owner, asking to share the login verification code")
+            print("Sending message template to owner, asking to trigger the refresh cookie flow")
             template="Reply"
             send_to_whatsapp_contact("",owner,reply_payload,template)
             return {"statusCode": 200, "body": "User needs to refresh cookies"}
