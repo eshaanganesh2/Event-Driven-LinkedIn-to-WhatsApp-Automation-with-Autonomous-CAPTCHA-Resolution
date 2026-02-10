@@ -76,3 +76,9 @@ sam deploy
 ```
 
 ---
+## Cookie extraction Errors
+
+Cookie extraction issues can be debugged by inspecting base64-encoded screenshots captured during the Playwright automation run. These screenshots are written to AWS CloudWatch logs, allowing inspection without direct access to the runtime environment.
+To debug, copy the base64 string from CloudWatch logs, decode it locally, and view the resulting image to understand the page state at the time of failure.
+
+---

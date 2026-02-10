@@ -69,7 +69,7 @@ Resources:
         DailySchedule:
           Type: Schedule
           Properties:
-            Schedule: cron(30 20 * * ? *)
+            Schedule: cron(30 08 * * ? *)
 
   # 4. THE DYNAMODB TABLE (Free Tier)
   PinStoreTable:

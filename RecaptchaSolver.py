@@ -6,6 +6,7 @@ import pydub
 import speech_recognition
 import ssl
 from playwright.sync_api import Page
+import base64
 
 pydub.AudioSegment.converter = "/usr/bin/ffmpeg"
 pydub.AudioSegment.ffprobe = "/usr/bin/ffprobe"
@@ -33,7 +34,10 @@ class RecaptchaSolver:
             checkbox.click(position={'x': random.randint(10, 20), 'y': random.randint(10, 20)})
             print(f"Checkbox clicked with human offset.")
         except Exception as e:
-            print(f"Checkbox interaction failed: {e}")
+            self.page.screenshot(path="/tmp/checkbox_failure.png")
+            with open("/tmp/checkbox_failure.png", "rb") as image_file:
+                print("SCREENSHOT_CHECKBOX_FAILURE " + base64.b64encode(image_file.read()).decode('utf-8'))
+            print(f"Checkbox related failure: {e}")
             raise
 
         # Wait for the challenge to manifest
@@ -67,6 +71,8 @@ class RecaptchaSolver:
         except Exception as e:
             print(f"Step 3 failed: {e}")
             self.page.screenshot(path="/tmp/audio_btn_missing.png")
+            with open("/tmp/audio_btn_missing.png", "rb") as image_file:
+                print("SCREENSHOT_FAILURE_AUDIO " + base64.b64encode(image_file.read()).decode('utf-8'))
             raise
 
     def solve_audio_flow(self, challenge_frame):
@@ -98,6 +104,8 @@ class RecaptchaSolver:
         except Exception as e:
             print(f"Audio flow failure: {e}")
             self.page.screenshot(path="/tmp/audio_flow_failed.png")
+            with open("/tmp/audio_flow_failed.png", "rb") as image_file:
+                print("SCREENSHOT_FAILURE_AUDIO_SOLVE " + base64.b64encode(image_file.read()).decode('utf-8'))
             raise
 
     def _process_audio_challenge(self, audio_url: str) -> str:

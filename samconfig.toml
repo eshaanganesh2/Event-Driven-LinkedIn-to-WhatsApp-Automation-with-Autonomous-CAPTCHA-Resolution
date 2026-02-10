@@ -6,4 +6,4 @@ s3_prefix = "LinkedinToWhatsapp"
 region = "us-east-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-image_repositories = []
+image_repositories = ["LinkedintoWhatsapp=248189920167.dkr.ecr.us-east-1.amazonaws.com/linkedintowhatsapp2b1f79ab/linkedintowhatsappbe4fefc0repo", "WorkerFunction=248189920167.dkr.ecr.us-east-1.amazonaws.com/linkedintowhatsapp2b1f79ab/workerfunction5fd3ab0brepo"]
