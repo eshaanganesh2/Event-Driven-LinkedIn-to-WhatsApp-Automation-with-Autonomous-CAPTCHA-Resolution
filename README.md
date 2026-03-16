@@ -1,19 +1,19 @@
-# Self-Healing Serverless Automation for Adversarial Web Platforms: A LinkedIn–WhatsApp Pipeline
+# Event-Driven-Serverless-Pipeline-with-Autonomous-Session-Recovery
 
 A production-grade serverless system that automatically fetches LinkedIn posts and delivers them to WhatsApp, designed to survive captchas, MFA, session invalidation, and strict webhook timeouts through a self-healing, event-driven architecture.
 
 ## Key Features
 
-* **Automated Daily Fetch**: Delivers the latest post every day via EventBridge CRON.
-* **Intelligent Challenge Solving**: Automatically detects LinkedIn security hurdles (Recaptcha, Bot Challenges, PINs).
-* **Audio Captcha Solver**: Uses `pydub` and Speech-to-Text (`SpeechRecognition`) to bypass bot detection.
-* **WhatsApp-to-Browser Bridge**: Submit LinkedIn verification codes directly via a WhatsApp chat.
-* **Serverless Persistence**: Session cookies are manually reconstructed and stored in **DynamoDB** to ensure long-term stability across different execution environments.
+* **Scheduled Execution via EventBridge CRON**: Triggers daily post retrieval and delivery via a managed EventBridge rule, ensuring consistent execution without manual intervention.
+* **Multi-Stage CAPTCHA Resolution (reCAPTCHA, audio, PIN)**: Automatically detects and resolves LinkedIn security challenges, including reCAPTCHA checkbox interactions, audio challenge transcription via pydub and SpeechRecognition, and PIN-based verification flows.
+* **Asynchronous Worker Handoff for Webhook SLA Compliance**: Decouples heavy browser automation from the webhook handler by immediately returning 200 OK to Meta and asynchronously invoking a dedicated Worker Lambda, preventing timeout violations and duplicate retry loops.
+* **Human-in-the-Loop MFA via WhatsApp Polling Bridge**: Routes LinkedIn verification codes through WhatsApp and the Worker polls DynamoDB every 5 seconds until the owner replies with the code, then injects it directly into the live browser session.
+* **Persistent Session State via DynamoDB Cookie Reconstruction**: Manually reconstructs and persists LinkedIn session cookies in DynamoDB, enabling stable re-authentication across cold starts and execution environments without re-login.
 
 ---
 
 ## System Architecture
-
+The system is architected around Meta's strict <250ms webhook response requirement, which necessitates full decoupling of browser automation from the API handler. <br><br>
 <img src="https://github.com/eshaanganesh2/Adversarial-LinkedIn-WhatsApp-Orchestrator/blob/main/architecture_diagram.png" width="1024"/>
 
 The project utilizes a **Decoupled Worker Pattern** to stay within the strict timeout limits of the Meta WhatsApp Cloud API.
@@ -56,7 +56,7 @@ If LinkedIn asks for a verification code:
 
 ---
 
-## Engineering Rationale & System Design
+## Engineering Decisions & System Design
 
 ### 1. Advanced Browser Automation: Playwright vs. Selenium
 
