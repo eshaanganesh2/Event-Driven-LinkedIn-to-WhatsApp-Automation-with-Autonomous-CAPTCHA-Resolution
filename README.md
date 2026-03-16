@@ -1,6 +1,6 @@
-# Event-Driven-Serverless-Pipeline-with-Autonomous-Session-Recovery
+# Event Driven Serverless Pipeline with Autonomous Session Recovery
 
-A production-grade serverless system that automatically fetches LinkedIn posts and delivers them to WhatsApp, designed to survive captchas, MFA, session invalidation, and strict webhook timeouts through a self-healing, event-driven architecture.
+A serverless system engineered to operate within Meta's strict webhook constraints, featuring a decoupled worker architecture, autonomous multi-stage CAPTCHA resolution, and human-in-the-loop MFA via real-time DynamoDB polling
 
 ## Key Features
 
