@@ -1,0 +1,102 @@
+{
+  "info": {
+    "_postman_id": "9642f97b-3dc0-472b-9b7d-a9c007fdf3ec",
+    "name": "Linkedin_to_WhatsApp",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "17896825"
+  },
+  "item": [
+    {
+      "name": "message_text_API",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{WhatsApp_API_Bearer_Token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"messaging_product\": \"whatsapp\",\n    \"recipient_type\": \"individual\",\n    \"to\": {{APP_OWNER_NUMBER}},\n    \"type\": \"text\",\n    \"text\": {\n        \"preview_url\": true,\n        \"body\": \"Sending a test message\"\n    }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://graph.facebook.com/v25.0/{{WhatsApp_Business_Phone_ID}}/messages",
+          "protocol": "https",
+          "host": [
+            "graph",
+            "facebook",
+            "com"
+          ],
+          "path": [
+            "v25.0",
+            "{{WhatsApp_Business_Phone_ID}}",
+            "messages"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "message_template_utility_API",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{WhatsApp_API_Bearer_Token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"messaging_product\": \"whatsapp\",\n    \"recipient_type\": \"individual\",\n    \"to\": \"+{{APP_OWNER_NUMBER}}\",\n    \"type\": \"template\",\n    \"template\": {\n        \"name\": \"request_received_template\",\n        \"language\": {\n            \"code\": \"en\"\n        },\n        \"components\": [\n            {\n                \"type\": \"body\",\n                \"parameters\": [\n                    {\n                        \"type\": \"text\", // Positional parameter\n                        \"text\": \"name\" // Parameter content\n                    }\n                ]\n            }\n        ]\n    }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://graph.facebook.com/v25.0/{{WhatsApp_Business_Phone_ID}}/messages",
+          "protocol": "https",
+          "host": [
+            "graph",
+            "facebook",
+            "com"
+          ],
+          "path": [
+            "v25.0",
+            "{{WhatsApp_Business_Phone_ID}}",
+            "messages"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
