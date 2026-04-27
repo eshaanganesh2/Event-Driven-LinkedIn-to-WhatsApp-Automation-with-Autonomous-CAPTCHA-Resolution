@@ -192,67 +192,23 @@ def get_latest_post():
     }, 200
 
 @app.route("/webhook", methods=['GET', 'POST'])
-def print_webhooks():
+def webhook_entry():
     if request.method == 'GET':
-        print('webhook endpoint verification')
-        webhookVerifyToken = os.environ.get('WEBHOOK_VERIFY_TOKEN')
-        mode = request.args.get('hub.mode')
-        token = request.args.get("hub.verify_token")
-        challenge = request.args.get("hub.challenge")
+        verify_token = os.environ.get('WEBHOOK_VERIFY_TOKEN')
+        if request.args.get("hub.verify_token") == verify_token:
+            return request.args.get("hub.challenge"), 200
+        return 'Forbidden', 403
 
-        if mode == "subscribe" and token == webhookVerifyToken:
-            print("Webhook verified successfully!")
-            return challenge, 200
-        else:
-            print("Webhook verification failed!")
-            return 'Forbidden', 403
+    # Immediate acknoledgement to the webhook endpoint to avoid duplicate webhooks
+    data = request.get_json()
     
-    if request.method == 'POST':
-        print("Webhook received")
-        data = request.get_json()
-        worker_function_name=os.environ.get('WORKER_FUNCTION_NAME')
-        print("The webhook is ",data)
-
-        display_phone_number=""
-        recipient_phone_number=""
-        status=""
-        timestamp=""
-        webhook_reply=""
-        try:
-            display_phone_number = data.get('entry')[0].get('changes')[0].get('value').get('metadata').get('display_phone_number')
-            recipient_phone_number = data.get('entry')[0].get('changes')[0].get('value').get('statuses')[0].get('recipient_id')
-            status = data.get('entry')[0].get('changes')[0].get('value').get('statuses')[0].get('status')
-            timestamp = data.get('entry')[0].get('changes')[0].get('value').get('statuses')[0].get('timestamp')
-        except:
-            print("Error while extracting value from a webhook field")
-
-        try:
-            body_text = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body']
-            if body_text.startswith("verification code="):
-                pin = body_text.split("verification code=")[1].strip()
-                # SAVE PIN TO DYNAMODB
-                table.put_item(Item={
-                    'owner': os.environ.get('OWNER'), # Use a constant or owner phone number
-                    'pin': pin,
-                    'timestamp': int(time.time())
-                })
-                print("PIN saved to DynamoDB")
-                return "PIN Received", 200
-        except:
-            pass
-
-        lambda_client.invoke(
-            FunctionName= worker_function_name,
-            InvocationType='Event', # Fire and forget
-            Payload=json.dumps(data)
-        )
-
-        print("The sender phone number is ", display_phone_number)
-        print("The recipient phone number is ",recipient_phone_number)
-        print("The status is ",status)
-        print("The timestamp is ",timestamp)
-
-        return "Success", 200
+    lambda_client.invoke(
+        FunctionName=os.environ.get('WORKER_FUNCTION_NAME'),
+        InvocationType='Event',
+        Payload=json.dumps(data)
+    )
+    
+    return "OK", 200
 
 def handler(event, context):
     try:

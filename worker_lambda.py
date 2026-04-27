@@ -93,68 +93,117 @@ def send_to_whatsapp_api(payload):
 def lambda_handler(event, context):
     username = os.environ.get('LINKEDIN_EMAIL')
     password = os.environ.get('LINKEDIN_PASSWORD')
-    owner = os.environ.get("OWNER")
-    data = event    
+    owner = os.environ.get("OWNER") 
     TMP_DIR = os.environ.get("COOKIES_TMP_DIR")
-    # Check for manual refresh request
     try:
-        msg_value = data['entry'][0]['changes'][0]['value']
-        webhook_reply = msg_value['messages'][0]['interactive']['button_reply']['title']
+        value = event['entry'][0]['changes'][0]['value']
         
-        if webhook_reply == "Refresh cookies now!":
-            try:
-                print("Owner chose to refresh cookies now")
-                print("Clearing cookies tmp dir")
-                clear_cookies_jr(TMP_DIR)
-                global page_obj
-                page_obj = get_linkedin_page()
-                refresh_service = RefreshCookies()
-                print("Beginning of automated login for cookies refresh")
-                refresh_service.login(page_obj, username, password)
+        # Handling Incoming Messages (Text, Interactive, status, etc)
+        if 'messages' in value:
+            msg = value['messages'][0]
+            contact = value.get('contacts', [{}])[0]
+            sender_name = contact.get('profile', {}).get('name', 'Unknown')
+            sender_number = msg.get('from')
+            
+            # Text Message Logic
+            if msg.get('type') == 'text':
+                body = msg['text'].get('body', '')
                 
-                if refresh_service.is_pin_verification_page(page_obj):
-                    print("PIN verification page has come up")
-                    payload = {
-                        "messaging_product": "whatsapp",
-                        "to": owner,
-                        "type": "text",
-                        "text": {"body": "Please share LinkedIn login verification code in the specified format:\n\n verification code=<verification_code>"}
-                    }
-                    print("Sending message for verification code")
-                    send_to_whatsapp_api(payload)
-                    # 2. WAIT HERE (Keep browser open)
-                    pin = poll_for_pin()
-                    
-                    if pin:
-                        print(f"PIN {pin} found! Injecting...")
-                        refresh_service.verify_pin(page_obj, pin)
-                    else:
-                        print("Timed out waiting for PIN.")
+                # Checking for PIN
+                if body.startswith("verification code="):
+                    handle_pin_storage(body.split("=")[1].strip())
+                    return "PIN Received", 200
                 
-                # Extracting cookies from playwright browser session 
-                time.sleep(5)
+                # General Logging for all other text messages
+                webhook_message_notification=f"New Message from {sender_name} ({sender_number}): {body}"
+                print(webhook_message_notification)
+                # Only send notifications for webhooks generated from other users
+                if sender_number != owner:
+                    send_to_whatsapp_api(webhook_message_notification)
 
-                print("Attempting to save playwright session cookies to a .jr and to the TMP_DIR location")
-                # Create the .jr file
-                jar = save_playwright_cookies_to_jr(page_obj.context, username, TMP_DIR)
+            # Interactive Message Logic (Refresh Button)
+            elif msg.get('type') == 'interactive':
+                reply_title = msg['interactive'].get('button_reply', {}).get('title')
+                print(f"Interactive Click from {sender_name}: {reply_title}")
+                
+                if reply_title == "Refresh cookies now!":
+                    print("Cookie refresh has been invoked!")
+                    trigger_cookie_refresh(username,password,owner,TMP_DIR)
+                    return "Success", 200
 
-                print("Saving the cookies jr file into DynamoDB")
-                # Save the raw bytes to DynamoDB so the other lambda can use them too
-                cookie_file = os.path.join(TMP_DIR, f"{username}.jr")
-                with open(cookie_file, "rb") as f:
-                    raw_bytes = f.read()
-                    table.put_item(Item={
-                        'owner': os.environ.get('OWNER'),
-                        'type': 'linkedin_session',
-                        'linkedin_cookies': Binary(raw_bytes)
-                    })
-                time.sleep(3)
-                # Cleanup browser before Lambda ends
-                page_obj.context.browser.close()
-                print("Worker lambda has completed execution")
-            except Exception as e:
-                print("Encountered error during the execution of the worker lambda",e)
+        # Handling Webhook status updates
+        if 'statuses' in value:
+            status_info = value['statuses'][0]
+            webhook_status_notification=f"Webhook status: {status_info.get('status')} , Recipient: +{status_info.get('recipient_id')}"
+            print(webhook_status_notification)
+            # Only sending notifications if the webhook status is read or failed and if the webhook is generated from other users
+            if status_info.get('recipient_id') != owner and (status_info.get('status') == "read" or status_info.get('status') == "failed"):
+                send_to_whatsapp_api(webhook_status_notification)
+
     except Exception as e:
-        print("Not a cookie refresh button reply")
+        print(f" Worker Error: {e}")
+    
+    return {"status": "SUCCESS"}
 
-    return "Success", 200
+def handle_pin_storage(pin):
+    table.put_item(Item={
+        'owner': os.environ.get('OWNER'),
+        'pin': pin,
+        'timestamp': int(time.time())
+    })
+    print("PIN saved to DynamoDB")
+
+def trigger_cookie_refresh(username,password,owner,TMP_DIR):
+    try:
+        print("Owner chose to refresh cookies now")
+        print("Clearing cookies tmp dir")
+        clear_cookies_jr(TMP_DIR)
+        global page_obj
+        page_obj = get_linkedin_page()
+        refresh_service = RefreshCookies()
+        print("Beginning of automated login for cookies refresh")
+        refresh_service.login(page_obj, username, password)
+        
+        if refresh_service.is_pin_verification_page(page_obj):
+            print("PIN verification page has come up")
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": owner,
+                "type": "text",
+                "text": {"body": "Please share LinkedIn login verification code in the specified format:\n\n verification code=<verification_code>"}
+            }
+            print("Sending message for verification code")
+            send_to_whatsapp_api(payload)
+            # Waiting for PIN with browser session open
+            pin = poll_for_pin()
+            
+            if pin:
+                print(f"PIN {pin} found! Injecting...")
+                refresh_service.verify_pin(page_obj, pin)
+            else:
+                print("Timed out waiting for PIN.")
+        
+        # Extracting cookies from playwright browser session 
+        time.sleep(5)
+
+        print("Attempting to save playwright session cookies to a .jr and to the TMP_DIR location")
+        # Create the .jr file
+        jar = save_playwright_cookies_to_jr(page_obj.context, username, TMP_DIR)
+
+        print("Saving the cookies jr file into DynamoDB")
+        # Save the raw bytes to DynamoDB so the other lambda can use them too
+        cookie_file = os.path.join(TMP_DIR, f"{username}.jr")
+        with open(cookie_file, "rb") as f:
+            raw_bytes = f.read()
+            table.put_item(Item={
+                'owner': os.environ.get('OWNER'),
+                'type': 'linkedin_session',
+                'linkedin_cookies': Binary(raw_bytes)
+            })
+        time.sleep(3)
+        # Cleanup browser before Lambda ends
+        page_obj.context.browser.close()
+        print("Worker lambda has completed execution")
+    except Exception as e:
+        print("Encountered error during the execution of the worker lambda",e)
+
