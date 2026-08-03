@@ -23,29 +23,54 @@ payload = {
 }
 
 def save_playwright_cookies_to_jr(context, username, TMP_DIR):
-    # 1. Get cookies from Playwright context
     playwright_cookies = context.cookies()
+    
+    # Finding the li_at cookie and extracting its valid expiration timestamp
+    li_at_expiry = None
+    for c in playwright_cookies:
+        if c.get('name') == 'li_at' and c.get('expires') and c.get('expires') > 0:
+            li_at_expiry = int(c.get('expires'))
+            break
+
+    # Fallback to 1 year if li_at didn't have an expiry set
+    if not li_at_expiry:
+        li_at_expiry = int(time.time()) + (365 * 86400)
+        print(f"Warning: li_at expiry not found, falling back to: {li_at_expiry}")
+    else:
+        print(f"Using li_at expiration timestamp: {li_at_expiry}")
+
+    # Constructing cookie objects, replacing -1/None expiries with li_at_expiry
     jar = RequestsCookieJar()
     
     for c in playwright_cookies:
-        # Create a proper Cookie object preserving metadata extracted from the playwright cookies
+        raw_expires = c.get('expires')
+        
+        # If expires is missing, None, or <= 0 (e.g. JSESSIONID returning -1 from Playwright)
+        if raw_expires is None or raw_expires <= 0:
+            expiry_val = li_at_expiry
+            print(f"Patched session cookie '{c['name']}' expiry to match li_at ({expiry_val})")
+        else:
+            expiry_val = int(raw_expires)
+
         cookie_obj = create_cookie(
             name=c['name'],
             value=c['value'],
             domain=c.get('domain'),
             path=c.get('path'),
-            expires=c.get('expires'), # This preserves the 365-day value!
+            expires=expiry_val,  # <--- Reuses li_at's exact expiration date
             secure=c.get('secure'),
             rest={'HttpOnly': c.get('httpOnly'), 'SameSite': c.get('sameSite')}
         )
         jar.set_cookie(cookie_obj)
 
-    # Save to the path the library expects
+    # 3. Save to the path the library expects
+    os.makedirs(TMP_DIR, exist_ok=True)
     cookie_file = os.path.join(TMP_DIR, f"{username}.jr")
+    
     with open(cookie_file, "wb") as f:
         pickle.dump(jar, f)
     
-    print(f" Successfully constructed {cookie_file} with full metadata.")
+    print(f"Successfully constructed {cookie_file} synchronized with li_at expiry.")
     return jar
 
 def get_linkedin_page():
@@ -74,7 +99,7 @@ def get_linkedin_page():
     page.mouse.wheel(0, 400)
     time.sleep(2)
     print("Playwright launched successfully!")
-    page.goto("https://www.linkedin.com/uas/login", wait_until="networkidle")
+    page.goto("https://www.linkedin.com/uas/login", wait_until="domcontentloaded", timeout=60000)
     return page
 
 def poll_for_pin():
