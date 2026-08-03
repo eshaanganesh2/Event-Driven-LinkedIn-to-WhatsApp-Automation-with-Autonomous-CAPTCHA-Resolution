@@ -8,11 +8,11 @@ class RefreshCookies:
         print("Playwright -> Filling credentials...")
         
         # Fill username
-        page.locator("#username").fill(username)
+        page.locator('input[type="email"]:visible').fill(username)
         time.sleep(random.uniform(0.5, 1.0))
         
         # Fill password and press Enter
-        page.locator("#password").fill(password)
+        page.locator('input[type="password"]:visible').fill(password)
         time.sleep(random.uniform(0.5, 1.0))
         page.keyboard.press("Enter")
 
