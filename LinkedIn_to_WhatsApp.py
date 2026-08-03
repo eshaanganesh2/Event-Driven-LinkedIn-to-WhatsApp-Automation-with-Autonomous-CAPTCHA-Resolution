@@ -1,12 +1,14 @@
 from linkedin_api import Linkedin, client, cookie_repository
 import os
 import shutil
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import aws_lambda_wsgi
 import boto3
 import json
 import time
 import pickle
+import ast
+import base64
 from boto3.dynamodb.types import Binary
 
 app = Flask(__name__)
@@ -209,6 +211,95 @@ def webhook_entry():
     )
     
     return "OK", 200
+
+@app.route("/buildCookieJar", methods=['POST'])
+def build_cookie_jar_from_body():
+    """
+    Accepts binary bytes OR string representation from DynamoDB 
+    in the POST body, constructs the .jr file, and returns cookie metadata.
+
+    ==========================================================================
+    TESTING IN POSTMAN (WITH DYNAMODB STRING TEXT):
+    1. Set Method to POST.
+    2. URL: http://127.0.0.1:5000/buildCookieJar
+    3. Go to "Body" -> Select "raw" -> Select "Text" (or "JSON").
+    4. Paste the DynamoDB string directly into the text box.
+    5. Hit "Send".
+    ==========================================================================
+    """
+    username = os.environ.get('LINKEDIN_EMAIL')
+    TMP_DIR = os.environ.get("COOKIES_TMP_DIR")
+    cookie_file_path = os.path.join(TMP_DIR, f"{username}.jr")
+
+    # 1. Read body data
+    payload = request.get_data()
+
+    if not payload:
+        return jsonify({
+            "error": "empty_body",
+            "message": "No payload provided in the request body."
+        }), 400
+
+    raw_bytes = None
+
+    # 2. Convert text string formats to raw bytes
+    try:
+        # Check if payload is string format like "b'\x80\x04...'" or "\x80\x04..."
+        payload_str = payload.decode('utf-8').strip()
+        
+        if payload_str.startswith("b'") or payload_str.startswith('b"'):
+            # Convert Python byte literal string (e.g., b'\x80\x04...') back to bytes
+            raw_bytes = ast.literal_eval(payload_str)
+        else:
+            try:
+                # Try Base64 decoding if DynamoDB exported it as Base64 text
+                raw_bytes = base64.b64decode(payload_str)
+            except Exception:
+                # Fallback: treat string as latin-1 escaped bytes
+                raw_bytes = payload_str.encode('latin-1')
+    except Exception:
+        # If payload was already pure binary bytes
+        raw_bytes = payload
+
+    try:
+        # Ensure target directory exists
+        os.makedirs(TMP_DIR, exist_ok=True)
+
+        # 3. Write decoded raw bytes directly to the .jr file
+        with open(cookie_file_path, "wb") as f:
+            f.write(raw_bytes)
+
+        print(f"Successfully created {cookie_file_path}")
+
+        # 4. Verify cookie jar in memory
+        jar_summary = []
+        with open(cookie_file_path, "rb") as f:
+            cookie_jar = pickle.load(f)
+            for cookie in cookie_jar:
+                jar_summary.append({
+                    "name": cookie.name,
+                    "domain": cookie.domain,
+                    "expires": cookie.expires
+                })
+
+        return jsonify({
+            "status": "success",
+            "file_path": cookie_file_path,
+            "bytes_written": len(raw_bytes),
+            "cookies_found": jar_summary
+        }), 200
+
+    except pickle.UnpicklingError:
+        return jsonify({
+            "error": "invalid_format",
+            "message": "The payload could not be unpickled into a valid RequestsCookieJar. Check string encoding."
+        }), 400
+    except Exception as e:
+        print(f"Failed to create .jr file: {e}")
+        return jsonify({
+            "error": "write_failed",
+            "message": str(e)
+        }), 500
 
 def handler(event, context):
     try:
