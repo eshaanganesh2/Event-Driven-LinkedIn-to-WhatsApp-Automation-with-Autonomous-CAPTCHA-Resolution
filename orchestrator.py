@@ -13,7 +13,7 @@ def get_latest_post():
 def send_to_whatsapp_contact(latest_post,recipient,payload,template):
     # Prepare whatsapp graph api request body
     token = os.environ.get("WHATSAPP_BEARER_TOKEN")
-    print("The token is ",token)
+    # print("The token is ",token)
     print("The recipient is ",recipient)
     url = os.environ.get("WHATSAPP_API_URL")
     

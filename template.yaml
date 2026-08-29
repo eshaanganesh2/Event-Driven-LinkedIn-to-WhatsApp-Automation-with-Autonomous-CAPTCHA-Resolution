@@ -1,6 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
+Parameters:
+  ScheduleExpression:
+    Type: String
+    Default: "cron(30 08 * * ? *)"
+    Description: EventBridge schedule expression for the daily orchestrator
+
 Resources:
   # 1. THE FLASK APP (Webhook & API)
   LinkedintoWhatsapp:
@@ -69,7 +75,7 @@ Resources:
         DailySchedule:
           Type: Schedule
           Properties:
-            Schedule: cron(30 08 * * ? *)
+            Schedule: !Ref ScheduleExpression
 
   # 4. THE DYNAMODB TABLE (Free Tier)
   PinStoreTable:
