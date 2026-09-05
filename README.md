@@ -1,4 +1,4 @@
-# Event-Driven LinkedIn-to-WhatsApp Automation with Autonomous CAPTCHA Resolution
+# Event-Driven LinkedIn-to-WhatsApp Content Broadcasting with Autonomous CAPTCHA Resolution
 
 A serverless system engineered to operate within Meta's strict webhook constraints, featuring a decoupled worker architecture, autonomous multi-stage CAPTCHA resolution, and human-in-the-loop MFA via real-time DynamoDB polling
 
